@@ -1,0 +1,118 @@
+version: '1.0'
+services:
+  - name: db
+    type: mariadb
+    version: 10.2
+    configuration: StandAlone
+    database: magento
+    username: magento
+    # Ask password on create
+    userPassword: null
+    password: null
+    ports:
+      - 3306
+    remoteAccess: false
+    comments:
+      username: Database will be created with the same name
+    deployTo:
+      - magento
+
+  - name: cache
+    type: redis
+    version: 4.0
+    remoteAccess: false
+    ports:
+      - 6379
+    deployTo:
+      - magento
+
+  - name: magento
+    type: docker
+    image: d2cio/magento2
+    version: latest
+    ports:
+      - 9000
+    localDeps: |
+      cmd extract
+    configFiles:
+      - dest: /usr/local/etc/php/conf.d/php.ini
+        src: ./configs/php.ini
+    initialCommands: |
+      su -l www-data -s /bin/bash -c "php $MAIN_PATH/bin/magento setup:install \
+        --base-url $BASE_URL \
+        --db-host $DB_HOSTNAME \
+        --db-name $DB_DATABASE \
+        --db-user $DB_USERNAME \
+        --db-password $DB_PASSWORD \
+        --backend-frontname $ADMIN_URI \
+        --admin-firstname $ADMIN_FIRSTNAME \
+        --admin-lastname $ADMIN_LASTNAME \
+        --admin-email $ADMIN_EMAIL \
+        --admin-user $ADMIN_USERNAME \
+        --admin-password $ADMIN_PASSWORD \
+        --use-rewrites 1 && \
+      php $MAIN_PATH/bin/magento setup:config:set --cache-backend=redis --cache-backend-redis-server={{=service('cache').getAppAlias()}} && \
+      php $MAIN_PATH/bin/magento indexer:reindex && \
+      php $MAIN_PATH/bin/magento cache:flush"
+    env:
+      SERVICE_NAME: "{{=service('magento').get('name')}}"
+      ADMIN_USERNAME: null
+      ADMIN_PASSWORD: null
+      ADMIN_EMAIL: null
+      ADMIN_FIRSTNAME: null
+      ADMIN_LASTNAME: null
+      ADMIN_URI: null
+      DB_HOSTNAME: "{{=service('db').getMasterAlias()}}"
+      DB_USERNAME: "{{=service('db').get('username')}}"
+      DB_PASSWORD: "{{=service('db').get('userPassword')}}"
+      DB_DATABASE: "{{=service('db').get('database')}}"
+      BASE_URL: "http://{{=service('magento').getNginxDomain()}}/"
+    comments:
+      env:
+        ADMIN_URI: Uniform Resource Identifier (URI) to access the Magento Admin. The Admin URI can contain alphanumeric values and the underscore character (_) only.
+    volumesUID: 33
+    volumes:
+      - directory: $MAIN_PATH/pub/media
+      - directory: $MAIN_PATH/app/etc
+    deployTo:
+      - magento
+
+  - name: web
+    type: nginx
+    version: 1.15
+    ports:
+      - 80
+      - 443
+    remoteAccess: true
+    serviceFiles:
+      - name: magento
+        static: true
+        src: ./configs/magento.conf
+    deployTo:
+      - magento
+
+  - name: pma
+    type: phpApache
+    version: 7.1
+    remoteAccess: true
+    ports:
+      - 8080
+    source:
+      type: git
+      url: https://github.com/phpmyadmin/phpmyadmin
+      version: STABLE
+    extensions:
+      - mysqli
+      - opcache
+    configFiles:
+      - dest: $MAIN_PATH/config.inc.php
+        src: ./configs/config.inc.php
+    localDeps: composer install
+    deployTo:
+      - magento
+
+hosts:
+  - name: magento
+    requirements:
+      cores: 1
+      memory: 2
