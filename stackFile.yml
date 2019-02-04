@@ -70,6 +70,7 @@ services:
     comments:
       env:
         ADMIN_URI: Uniform Resource Identifier (URI) to access the Magento Admin. The Admin URI can contain alphanumeric values and the underscore character (_) only.
+        ADMIN_PASSWORD: Admin password must be seven or more characters long, and include both letters and numbers.
     volumesUID: 33
     volumes:
       - directory: $MAIN_PATH/pub/media
