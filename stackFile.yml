@@ -1,8 +1,8 @@
 version: '1.0'
 services:
   - name: db
-    type: mariadb
-    version: 10.2
+    type: mysql
+    version: 5.7
     configuration: StandAlone
     database: magento
     username: magento
@@ -93,7 +93,7 @@ services:
 
   - name: web
     type: nginx
-    version: 1.15
+    version: 1.17
     ports:
       - 80
       - 443
